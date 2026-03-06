@@ -33,3 +33,10 @@ class UltraShapeMeshWrapper:
         self.voxel_idx = voxel_idx  # (B, K, 3) voxel indices
         self.mesh_path = mesh_path
         self.normalize_scale = normalize_scale
+
+
+class UltraShapeOutputWrapper:
+    """Wrapper for output mesh"""
+    def __init__(self, mesh, latents=None):
+        self.mesh = mesh  # trimesh.Trimesh object
+        self.latents = latents

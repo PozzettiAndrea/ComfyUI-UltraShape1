@@ -1,0 +1,20 @@
+python = "3.10"
+
+[cuda]
+packages = ["cubvh", "sageattention"]
+
+[pypi-dependencies]
+trimesh = ">=4.0.0"
+omegaconf = ">=2.3.0"
+einops = ">=0.8.0"
+pymeshlab = "*"
+timm = "*"
+accelerate = ">=0.17.0"
+diffusers = "*"
+pytorch-lightning = "*"
+rembg = "*"
+huggingface-hub = "*"
+scikit-image = "*"
+opencv-python-headless = "*"
+onnxruntime = "*"
+transformers = "*"

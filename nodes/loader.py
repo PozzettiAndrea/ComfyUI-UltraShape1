@@ -7,7 +7,7 @@ from common import (
     ULTRASHAPE_MODELS_DIR, CONFIG_DIR,
     COMFY_OUTPUT_DIR, ensure_ultrashape_checkpoint
 )
-from wrappers import UltraShapeModelWrapper, UltraShapeMeshWrapper
+from wrappers import UltraShapeModelWrapper, UltraShapeMeshWrapper, UltraShapeOutputWrapper
 
 
 @isolated(env="ultrashape1", import_paths=["."])
@@ -298,4 +298,67 @@ class UltraShapeLoadCoarseMesh:
         )
 
         print(f"[UltraShape] Mesh loaded: surface={surface.shape}, voxel_idx={voxel_idx.shape}")
+        return (wrapper,)
+
+
+@isolated(env="ultrashape1", import_paths=["."])
+class UltraShapeLoadCoarseMeshFromTrimesh:
+    """Load and preprocess a TRIMESH object for refinement — no file I/O needed.
+
+    Accepts a TRIMESH object directly (e.g. from Trellis2 nodes) and converts it
+    to ULTRASHAPE_MESH, bypassing any file path resolution entirely.
+    """
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("ULTRASHAPE_MODEL",),
+                "trimesh": ("TRIMESH",),
+            },
+            "optional": {
+                "normalize_scale": ("FLOAT", {"default": 0.99, "min": 0.5, "max": 1.0, "step": 0.01}),
+                "num_sharp_points": ("INT", {"default": 204800, "min": 10000, "max": 500000, "step": 10000}),
+                "num_uniform_points": ("INT", {"default": 204800, "min": 10000, "max": 500000, "step": 10000}),
+                "num_latents": ("INT", {"default": 0, "min": 0, "max": 131072, "step": 1024,
+                    "tooltip": "Number of latent tokens. 0=use config default (usually 32768). Higher=more detail but more VRAM"}),
+            }
+        }
+
+    RETURN_TYPES = ("ULTRASHAPE_MESH",)
+    RETURN_NAMES = ("coarse_mesh",)
+    FUNCTION = "load_from_trimesh"
+    CATEGORY = "UltraShape/Loaders"
+
+    def load_from_trimesh(self, model, trimesh,
+                          normalize_scale=0.99, num_sharp_points=204800,
+                          num_uniform_points=204800, num_latents=0):
+        from ultrashape.surface_loaders import SharpEdgeSurfaceLoader
+        from ultrashape.utils import voxelize_from_point
+        from wrappers import UltraShapeMeshWrapper
+
+        print(f"[UltraShape] Loading coarse mesh from TRIMESH object "
+              f"(vertices={len(trimesh.vertices)}, faces={len(trimesh.faces)})")
+
+        loader = SharpEdgeSurfaceLoader(
+            num_sharp_points=num_sharp_points,
+            num_uniform_points=num_uniform_points,
+        )
+
+        surface = loader(trimesh, normalize_scale=normalize_scale)
+        surface = surface.to(model.device, dtype=model.dtype)
+
+        pc = surface[:, :, :3]
+
+        token_num = num_latents if num_latents > 0 else model.token_num
+        _, voxel_idx = voxelize_from_point(pc, token_num, resolution=model.voxel_res)
+
+        wrapper = UltraShapeMeshWrapper(
+            surface=surface,
+            voxel_idx=voxel_idx,
+            mesh_path=None,
+            normalize_scale=normalize_scale,
+        )
+
+        print(f"[UltraShape] Mesh loaded from TRIMESH: surface={surface.shape}, voxel_idx={voxel_idx.shape}")
         return (wrapper,)
